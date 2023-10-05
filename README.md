@@ -16,6 +16,5 @@ Caveats:
 - As code simplicty was favoured over complex performance enhancements, don't expect ultra-fast content transfer speeds,
 - This code is very much *BETA*, forks and PRs are welcome!
 
-
 [1] https://matrix.org
 [2] https://github.com/matrix-org/synapse
