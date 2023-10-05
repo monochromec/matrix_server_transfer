@@ -11,8 +11,11 @@ prequisites have been met:
 
 Caveats:
 - Device IDs are randomly generated (cf. the constructor of the `Matrix_Handler`class),
-- As access tokens are bound to a specific device, the code prefers,
+- As access tokens are bound to a specific device, the code prefers passwords over (access) tokens (conincidentally, the code will work with an access token bound to a different device but resulting in a `LoginError`, this behaviour might be a pecularity of the Matrix server used for development and testing named Synapse [2]; so simply use passwords when in doubt)
 - All credentials (user names, passwords and tokens) be specified as command line parameters and take precedence over the contents of the credentials file (as per Unix default behaviour), cf. the implementation of the `Config` class,
+- As code simplicty was favoured over complex performance enhancements, don't expect ultra-fast content transfer speeds,
+- This code is very much *BETA*, forks and PRs are welcome!
 
 
 [1] https://matrix.org
+[2] https://github.com/matrix-org/synapse
