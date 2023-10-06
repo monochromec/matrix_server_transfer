@@ -241,24 +241,32 @@ class Matrix_Server:
         if isinstance(event, (nio.RoomMessageMedia, nio.RoomEncryptedMedia)):
             # mime = event.mimetype
             media_data_resp = await download_mxc(self.old, event.url)
-            body = media_data_resp.body
-            name = media_data_resp.filename
-            mime = media_data_resp.content_type
-            body_size = len(body)
-            resp, _ = await self.client.upload(data_provider=io.BytesIO(body), content_type=mime, 
-                                               filename=name, filesize=body_size)
-            
-            if self.verb:
-                sys_exit(f'Uploaded {name}, obtained URL {resp.content_uri}', False)
+            if hasattr(media_data_resp, 'body'):
+                body = media_data_resp.body
+                name = media_data_resp.filename
+                mime = media_data_resp.content_type
+                body_size = len(body)
+                resp, _ = await self.client.upload(data_provider=io.BytesIO(body), content_type=mime, 
+                                                filename=name, filesize=body_size)
                 
-            content = {
-                'body': name,
-                'info': {
-                    'size': body_size,
-                    'mimetype': mime,
-                },
-                'url': resp.content_uri
-            }
+                if self.verb:
+                    sys_exit(f'Uploaded {name}, obtained URL {resp.content_uri}', False)
+                    
+                content = {
+                    'body': name,
+                    'info': {
+                        'size': body_size,
+                        'mimetype': mime,
+                    },
+                    'url': resp.content_uri
+                }
+            else:
+                content = {
+                    'body': 'Empty body, something went wrong'
+                }
+                if self.verb:
+                    sys_exit(f'mxc_download returned empty body from url {event.url}', False)
+
         else:
             content = {
                 'body': event.body,
