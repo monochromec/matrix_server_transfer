@@ -190,25 +190,27 @@ class Matrix_Server:
         
         room = self.get_room(room_name)        
         avatar_url = old_room.gen_avatar_url
-        avatar = await download_mxc(self.old, avatar_url)
-        if isinstance(avatar, nio.DownloadResponse):
-            body = avatar.body
-            size = len(body)
-            if size > 0:
-                resp, _ = await self.client.upload(io.BytesIO(avatar.body), avatar.content_type, filesize=size)
-                if self.verb:
-                    if isinstance(resp, nio.UploadResponse):
-                        sys_exit(f'Uploaded room avatar, obtained URL {resp.content_uri}', False)
-                    else:
-                        sys_exit(f'Error when uploading room avatar: {str(resp)}', False)
-                    
-                content = {
-                     'url': resp.content_uri
-                }
-                resp = await self.client.room_put_state(room.room_id, 'm.room.avatar', content)
-                if self.verb:
-                    if isinstance(resp, nio.RoomPutStateError):
-                        sys_exit(f'Setting room state of {room.room_id} resulted in {str(resp)}', False)    
+        # Create avatar for new room if possible
+        if avatar_url != None and len(avatar_url) > 0:
+            avatar = await download_mxc(self.old, avatar_url)
+            if isinstance(avatar, nio.DownloadResponse):
+                body = avatar.body
+                size = len(body)
+                if size > 0:
+                    resp, _ = await self.client.upload(io.BytesIO(avatar.body), avatar.content_type, filesize=size)
+                    if self.verb:
+                        if isinstance(resp, nio.UploadResponse):
+                            sys_exit(f'Uploaded room avatar, obtained URL {resp.content_uri}', False)
+                        else:
+                            sys_exit(f'Error when uploading room avatar: {str(resp)}', False)
+                        
+                    content = {
+                        'url': resp.content_uri
+                    }
+                    resp = await self.client.room_put_state(room.room_id, 'm.room.avatar', content)
+                    if self.verb:
+                        if isinstance(resp, nio.RoomPutStateError):
+                            sys_exit(f'Setting room state of {room.room_id} resulted in {str(resp)}', False)    
         
         return room
         
