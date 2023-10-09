@@ -271,20 +271,24 @@ class Matrix_Server:
                 resp, _ = await self.client.upload(data_provider=io.BytesIO(body), content_type=mime, 
                                                 filename=name, filesize=body_size)
                 
-                if self.verb:
-                    if isinstance(resp, nio.UploadResponse):
+                if isinstance(resp, nio.UploadResponse):
+                    if self.verb:   
                         sys_exit(f'Uploaded {name}, obtained URL {resp.content_uri}', False)
-                    else:
-                        sys_exit(f'Error when uploading {name}: {str(resp)}', False)
-                    
-                content = {
-                    'body': name,
-                    'info': {
-                        'size': body_size,
-                        'mimetype': mime,
-                    },
-                    'url': resp.content_uri
-                }
+                    content = {
+                        'body': name,
+                        'info': {
+                            'size': body_size,
+                            'mimetype': mime,
+                        },
+                        'url': resp.content_uri
+                    }
+                     
+                else:
+                    err_str = str(resp)
+                    sys_exit(f'Error when uploading {name}: {err_str}', False)  
+                    content = {
+                        'body': err_str
+                    }
             else:
                 content = {
                     'body': 'Empty body, something went wrong'
