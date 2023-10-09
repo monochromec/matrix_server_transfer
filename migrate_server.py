@@ -100,8 +100,7 @@ class Config:
          for key in ns_map:
             if key in self.old_list:
                 setattr(self.old, self.old_map[key], ns_map[key])
-            else:
-                if key in self.new_list:
+            elif key in self.new_list:
                     setattr(self.new, self.new_map[key], ns_map[key])
         
     def get_verb(self) -> bool:
@@ -181,16 +180,37 @@ class Matrix_Server:
         if isinstance(resp, (nio.RoomCreateError)):
             logging.error(f'Room creation error {str(resp)}')
             sys_exit(f'Cannot create room {room_name}, aborting')
-        else:
-            if self.verb:
-                sys_exit(f'Created room {room_name}', False)
+        elif self.verb:
+            sys_exit(f'Created room {room_name}', False)
             
         await self.sync()
         # Update cached data
         self.rooms = self.client.rooms
         self.room_names.append(room_name)
         
-        return self.get_room(room_name)
+        room = self.get_room(room_name)        
+        avatar_url = old_room.gen_avatar_url
+        avatar = await download_mxc(self.old, avatar_url)
+        if isinstance(avatar, nio.DownloadResponse):
+            body = avatar.body
+            size = len(body)
+            if size > 0:
+                resp, _ = await self.client.upload(io.BytesIO(avatar.body), avatar.content_type, filesize=size)
+                if self.verb:
+                    if isinstance(resp, nio.UploadResponse):
+                        sys_exit(f'Uploaded room avatar, obtained URL {resp.content_uri}', False)
+                    else:
+                        sys_exit(f'Error when uploading room avatar: {str(resp)}', False)
+                    
+                content = {
+                     'url': resp.content_uri
+                }
+                resp = await self.client.room_put_state(room.room_id, 'm.room.avatar', content)
+                if self.verb:
+                    if isinstance(resp, nio.RoomPutStateError):
+                        sys_exit(f'Setting room state of {room.room_id} resulted in {str(resp)}', False)    
+        
+        return room
         
     async def fetch_room_events(self, start_token: str, room: nio.MatrixRoom, direction: nio.MessageDirection) -> list[nio.Event]:
         events = []
@@ -250,7 +270,10 @@ class Matrix_Server:
                                                 filename=name, filesize=body_size)
                 
                 if self.verb:
-                    sys_exit(f'Uploaded {name}, obtained URL {resp.content_uri}', False)
+                    if isinstance(resp, nio.UploadResponse):
+                        sys_exit(f'Uploaded {name}, obtained URL {resp.content_uri}', False)
+                    else:
+                        sys_exit(f'Error when uploading {name}: {str(resp)}', False)
                     
                 content = {
                     'body': name,
@@ -298,6 +321,25 @@ class Matrix_Server:
     def get_room_names(self) -> list[str]:
         return self.room_names
     
+# Worker class helper for asynchronous execution
+class Worker:
+    def __init__(self, old: Matrix_Server, new: Matrix_Server) -> None:
+        self.old = old
+        self.new = new
+        
+    async def process_events(self, room_obj: nio.MatrixRoom) -> None:
+        room_name = self.old.get_room_name(room_obj)
+        events = await self.old.get_room_events(room_obj)
+        if len(events) > 0:
+            if room_name not in self.new.get_room_names():
+                new_room = await self.new.create_room(room_name)
+            else:
+                new_room = self.new.get_room(room_name)
+            
+            # Copy events from old to new room
+            await self.new.send_events(new_room, events)
+        
+    
 async def main() -> None:
     LOG_DIR = pathlib.Path(HOME, 'log')
     logging.basicConfig(filename=str(LOG_DIR/pathlib.Path(__file__).stem)+'.log', filemode='a', level=logging.DEBUG, format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
@@ -311,21 +353,15 @@ async def main() -> None:
     new = Matrix_Server(config.new, verbose=verb, old=old)
     await new.login()
     
+    aws = []
     for room in old.rooms:
         room_obj = old.get_room_from_id(room)
-        room_name = old.get_room_name(room_obj)
-        events = await old.get_room_events(room_obj)
-        if len(events) > 0:
-            if room_name not in new.get_room_names():
-                new_room = await new.create_room(room_name)
-            else:
-                new_room = new.get_room(room_name)
-            
-            # Copy events from old to new room
-            await new.send_events(new_room, events)
-            
-    new.logout()
-    old.logout()
+        worker = Worker(old, new)
+        aws.append(worker.process_events(room_obj))
+        
+    await asyncio.gather(*aws)
+    await new.logout()
+    await old.logout()
 
 if __name__ == '__main__':
     asyncio.get_event_loop().run_until_complete(main())
